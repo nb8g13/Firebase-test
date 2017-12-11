@@ -17,6 +17,11 @@
          overflow-y: auto;
        }
 
+       #current-caption {
+         width: 100%;
+         height: 20%;
+       }
+
        .firepad {
          width: 100%;
          height:50%;
@@ -47,6 +52,9 @@
       <div id="player"></div>
       <div id="controls"></div>
     </div>
+    <div id="current-caption">
+      <span></span>
+    </div>
 
     <script type="text/javascript" src="MediasitePlayerIFrameAPI.js"></script>
     <script type="text/javascript" src="MediasitePlayerControls.js"></script>
@@ -69,6 +77,8 @@
       var url = "https://sofo.mediasite.com/Mediasite/Play/d64d7806bcc14f95a3c57633bcfd30c31d";
       var player;
       var controls;
+      var currentFirepad;
+      var editor;
       //TODO: Make transcriptKey global instead of passing it around
 
 
@@ -104,6 +114,8 @@
         };
 
         // Initialize the FirebaseUI Widget using Firebase.
+        //May need to make functon which calls firebase.auth
+        //and then loads the transcript
         var ui = new firebaseui.auth.AuthUI(firebase.auth());
         // The start method will wait until the DOM is loaded.
         ui.start('#auth-container', uiConfig);
@@ -125,61 +137,60 @@
         });*/
       }
 
-      //Example function kept here for reference
-      function getExampleRef() {
-        var ref = firebase.database().ref();
-        var hash = window.location.hash.replace(/#/g, '');
-        if (hash) {
-          ref = ref.child(hash);
-        }
-
-        else {
-          ref = ref.push();
-          window.location = window.location + '#' + ref.key;
-        }
-
-        if(typeof console !== undefined) {
-          console.log('Firebase data: ', ref.toString());
-        }
-
-        return ref;
-      }
-
       //TODO: Manage user IDs correctly here
-      function addFirePadElement(firepadRef, caption) {
+      function addFirePadElement(firepadRef, transcriptKey) {
         var container = document.getElementById("firepad-container");
         var divElement = document.createElement('div');
+        var spanElement = document.createElement('span');
         divElement.setAttribute('id', firepadRef.key);
         divElement.classList.add("section");
         container.appendChild(divElement);
-        var codeMirrorBox = CodeMirror(divElement, {linewrapping: true});
-        var firepadBox = Firepad.fromCodeMirror(firepadRef, codeMirrorBox,
-          {richTextToolbar: false, richTextShortcuts: false});
+        divElement.appendChild(spanElement);
+
+        //Old CodeMirror code - now using headless states
+        //var codeMirrorBox = CodeMirror(divElement, {linewrapping: true});
+        //var firepadBox = Firepad.fromCodeMirror(firepadRef, codeMirrorBox,
+          //{richTextToolbar: false, richTextShortcuts: false});
 
         //Set initial text to original caption text
-        firepadBox.on('ready', function() {
+        /*firepadBox.on('ready', function() {
           if (firepadBox.isHistoryEmpty()) {
             firepadBox.setText(caption.text);
           }
-        });
+        });*/
 
-        return firepadBox;
+        addFirepadListeners(divElement, transcriptKey);
+
+        return divElement;
       }
 
+      function addFirepadListeners(firepadElement, trancriptKey) {
+        var captionKey = firepadElement.id;
+        var ref = firebase.database().ref(
+          "/firepads/" + trancriptKey + "/" + captionKey);
+
+        ref.child("history").limitToLast(1).on('child_added', function(snapshot) {
+          var headless = Firepad.Headless(ref);
+          firepadElement.firstChild.innerHTML = headless.getText();
+          headless.dispose();
+        });
+      }
 
       //Adds a caption entry to the database with a specific ID
       function addCaption(caption, transcriptKey) {
         var captionRef = firebase.database().ref("/captions/" + transcriptKey).push();
         captionRef.set({
-          time: caption.time
+          time: caption.time,
+          endTime: caption.endTime
         });
         return captionRef.key;
       }
 
-      //Need to check if i can preset the current text in the firepad objects
-      //Before calling Firepad.fromCodeMirror, I think I can? Can't need to manually set
-      function addFirePadRef(transcriptKey, captionKey) {
+      function addFirePadRef(transcriptKey, captionKey, caption) {
         var firepadRef = firebase.database().ref("/firepads/" + transcriptKey + "/" + captionKey);
+        var headless = Firepad.Headless(firepadRef);
+        headless.setText(caption.text);
+        headless.dispose();
         return firepadRef;
       }
 
@@ -207,15 +218,16 @@
         window.location = window.location + '#' + transcriptKey;
 
         var captions = player.getCaptions();
-        //captions = captions.slice(0,5);
+        captions = captions.slice(0,5);
 
         for (var i = 0; i < captions.length; i++) {
           var caption = captions[i];
           var captionKey = addCaption(caption, transcriptKey);
-          var firepadRef = addFirePadRef(transcriptKey, captionKey);
-          var firepadBox = addFirePadElement(firepadRef, caption);
-
+          var firepadRef = addFirePadRef(transcriptKey, captionKey, caption);
+          var firepadBox = addFirePadElement(firepadRef, transcriptKey);
         }
+
+        addCaptionListener(transcriptKey);
       }
 
       // Loads in Firepad elements for side menu in current TIME ORDER
@@ -225,15 +237,16 @@
             function(snapshot) {
               for (key in snapshot.val()) {
                 var firepadRef = addFirePadRef(firebase.database().ref("/firepads/"+ transcriptKey + "/" + key));
-                addFirePadElement(firepadRef);
+                addFirePadElement(firepadRef, trancriptKey);
               }
-            }
-          )
+          });
+          addCaptionListener(transcriptKey);
       }
 
       //Finds the hash in web url and either loads a transcript or creates a new one
       //if there is no hash
       function start() {
+        initializeCodeMirror();
         var ref = firebase.database().ref("/captions/");
         var hash = window.location.hash.replace(/#/g, '');
         if (hash && checkExistence(ref.child(hash))) {
@@ -252,14 +265,51 @@
       }
 
       //TODO: Add update to current caption here (postpone this for now)
-      function addCaptionListener() {
+      function addCaptionListener(transcriptKey) {
+        console.log("called event adder");
+        player.addHandler("currenttimechanged", function(event) {
+          console.log("player time changed");
+          var id = findCaptionForTime(event.currentTime, transcriptKey);
+          var ref = firebase.database().ref("/firepads/" + transcriptKey + "/" + id);
 
+          if(currentFirepad) {
+            currentFirepad.dispose();
+          }
+
+          currentFirepad = Firepad.fromCodeMirror(ref, editor, {richTextToolbar: false, richTextShortcuts: false});
+          scrollToCaption(id);
+        });
       }
 
+      function initializeCodeMirror() {
+        editor = CodeMirror(document.getElementById("current-caption"), {linewrapping: true});
+      }
+
+      function findCaptionForTime(time, transcriptKey, callback) {
+        console.log("caption finder called");
+        console.log("time: " + time);
+        var id;
+        var ref = firebase.database().ref("/captions/" + transcriptKey);
+        ref.orderByChild("endTime").endAt(time).limitToLast(1).once("value").then(function(snapshot) {
+            var snapshotValue = snapshot.val();
+            console.log("Should print snapshot here:")
+            console.log(snapshotValue);
+            for(key in snapshotValue) {
+              console.log("key found");
+              id = key;
+        }.then()
+
+        console.log("ID found: " + id);
+        return id;
+      }
+
+
+
+      //Checks if a hash exists in the firebase database
       function checkExistence(dataRef) {
-        dataRef.once('value', function(snapshot) {
+        dataRef.once('value').then(function(snapshot) {
           return (snapshot.val() !== null);
-        })
+        });
       }
 
     </script>
