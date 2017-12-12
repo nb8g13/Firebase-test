@@ -25,6 +25,7 @@
        .firepad {
          width: 100%;
          height:50%;
+         background-color: #f62;
        }
 
        .section {
@@ -45,7 +46,7 @@
       }
     </style>
   </head>
-  <body onload="initialize()">
+  <body onload="startFirebase()">
     <div id ="auth-container"></div>
     <div id="firepad-container"></div>
     <div id="video-container">
@@ -72,7 +73,8 @@
     <!-- Firepad -->
     <script src="https://cdn.firebase.com/libs/firepad/1.4.0/firepad.min.js"></script>
 
-    <script>
+    <script type="text/javascript" src="index.js"></script>
+    <!--<script>
 
       var url = "https://sofo.mediasite.com/Mediasite/Play/d64d7806bcc14f95a3c57633bcfd30c31d";
       var player;
@@ -99,8 +101,6 @@
 
         console.log("Firebase initialized");
 
-        //var firepadRef = getExampleRef();
-
         console.log("Got firepad reference");
 
         var uiConfig = {
@@ -122,19 +122,6 @@
 
         console.log("Getting the player reference");
         getPlayerReference(start);
-        //var codeMirror = CodeMirror(document.getElementById('firepad-container'), { linewrapping: true});
-
-        //console.log("Build code mirror object");
-
-        /*var firepad = Firepad.fromCodeMirror(firepadRef, codeMirror,
-          {richTextToolbar: true, richTextShortcuts: true});
-
-        firepad.on('ready', function() {
-          if (firepad.isHistoryEmpty()) {
-            firepad.setHtml(
-              '<span style="font-size: 24px;"> Rich text editing with <span style="color:red">Firepad!</span></span><br/><br/>Collaborative-editing made easy.\n');
-          }
-        });*/
       }
 
       //TODO: Manage user IDs correctly here
@@ -146,18 +133,6 @@
         divElement.classList.add("section");
         container.appendChild(divElement);
         divElement.appendChild(spanElement);
-
-        //Old CodeMirror code - now using headless states
-        //var codeMirrorBox = CodeMirror(divElement, {linewrapping: true});
-        //var firepadBox = Firepad.fromCodeMirror(firepadRef, codeMirrorBox,
-          //{richTextToolbar: false, richTextShortcuts: false});
-
-        //Set initial text to original caption text
-        /*firepadBox.on('ready', function() {
-          if (firepadBox.isHistoryEmpty()) {
-            firepadBox.setText(caption.text);
-          }
-        });*/
 
         addFirepadListeners(divElement, transcriptKey);
 
@@ -179,11 +154,12 @@
       //Adds a caption entry to the database with a specific ID
       function addCaption(caption, transcriptKey) {
         var captionRef = firebase.database().ref("/captions/" + transcriptKey).push();
-        captionRef.set({
+        return captionRef.set({
           time: caption.time,
           endTime: caption.endTime
+        }).then(function () {
+          return captionRef.key;
         });
-        return captionRef.key;
       }
 
       function addFirePadRef(transcriptKey, captionKey, caption) {
@@ -222,12 +198,17 @@
 
         for (var i = 0; i < captions.length; i++) {
           var caption = captions[i];
-          var captionKey = addCaption(caption, transcriptKey);
-          var firepadRef = addFirePadRef(transcriptKey, captionKey, caption);
-          var firepadBox = addFirePadElement(firepadRef, transcriptKey);
+          addCaption(caption, transcriptKey).then(function(captionKey) {
+            console.log("printing caption key:")
+            return addFirePadRef(transcriptKey, captionKey, caption);
+          }).then(function(firepadRef) {
+            console.log("printing firepad reference " + firepadRef);
+            addFirePadElement(firepadRef, transcriptKey);
+          }).then(function() {
+            console.log("addingCaptionListener");
+            addCaptionListener(transcriptKey);
+          });
         }
-
-        addCaptionListener(transcriptKey);
       }
 
       // Loads in Firepad elements for side menu in current TIME ORDER
@@ -239,8 +220,8 @@
                 var firepadRef = addFirePadRef(firebase.database().ref("/firepads/"+ transcriptKey + "/" + key));
                 addFirePadElement(firepadRef, trancriptKey);
               }
+              addCaptionListener(transcriptKey);
           });
-          addCaptionListener(transcriptKey);
       }
 
       //Finds the hash in web url and either loads a transcript or creates a new one
@@ -269,15 +250,15 @@
         console.log("called event adder");
         player.addHandler("currenttimechanged", function(event) {
           console.log("player time changed");
-          var id = findCaptionForTime(event.currentTime, transcriptKey);
-          var ref = firebase.database().ref("/firepads/" + transcriptKey + "/" + id);
+          var id = findCaptionForTime(event.currentTime, transcriptKey).then(function(id) {
+            var ref = firebase.database().ref("/firepads/" + transcriptKey + "/" + id);
+            if(currentFirepad) {
+              currentFirepad.dispose();
+            }
 
-          if(currentFirepad) {
-            currentFirepad.dispose();
-          }
-
-          currentFirepad = Firepad.fromCodeMirror(ref, editor, {richTextToolbar: false, richTextShortcuts: false});
-          scrollToCaption(id);
+            currentFirepad = Firepad.fromCodeMirror(ref, editor, {richTextToolbar: false, richTextShortcuts: false});
+            scrollToCaption(id);
+          });
         });
       }
 
@@ -286,24 +267,21 @@
       }
 
       function findCaptionForTime(time, transcriptKey, callback) {
-        console.log("caption finder called");
-        console.log("time: " + time);
-        var id;
         var ref = firebase.database().ref("/captions/" + transcriptKey);
-        ref.orderByChild("endTime").endAt(time).limitToLast(1).once("value").then(function(snapshot) {
+        return ref.orderByChild("endTime").endAt(time).limitToLast(1).once("value").then(function(snapshot) {
+            var id;
             var snapshotValue = snapshot.val();
             console.log("Should print snapshot here:")
             console.log(snapshotValue);
             for(key in snapshotValue) {
               console.log("key found");
               id = key;
-        }.then()
-
-        console.log("ID found: " + id);
-        return id;
+            }
+            return id;
+        });
       }
 
-
+      //TODO: Deal with async via promises
 
       //Checks if a hash exists in the firebase database
       function checkExistence(dataRef) {
@@ -312,6 +290,6 @@
         });
       }
 
-    </script>
+    </script>-->
   </body>
 </html>
