@@ -105,12 +105,16 @@ function loadTranscript() {
 }
 
 function createCaption(caption) {
-  var captionRef = firebase.database().ref("/captions/" + transcriptKey).push();
-  captionRef.set({
+  var captionRef = firebase.database().ref("/captions/" + transcriptKey).push({
     time: caption.time,
     endTime: caption.endTime,
     original: caption.text
   });
+  /*captionRef.set({
+    time: caption.time,
+    endTime: caption.endTime,
+    original: caption.text
+  });*/
 
 
   /*var padRef = firebase.database().ref("/firepads/" + transcriptKey + "/" + captionRef.key);
@@ -137,9 +141,53 @@ function listenForFirepads() {
     var divElement = document.createElement('div');
     var spanElement = document.createElement('span');
     divElement.id = snapshot.key;
+    //Doesn't work because we need to get the time from the caption object,
+    //not the firepad one! Need to wrap this all in a promise...
+    divElement.setAttribute("timestamp", snapshot.val().time);
+    console.log("Adding timstamp attribute: " + snapshot.val().time);
+    console.log("snapshot found: " + snapshot.hasChild("time"));
     divElement.classList.add("section");
     container.appendChild(divElement);
     divElement.appendChild(spanElement);
+
+    var diff =  snapshot.val().endTime - player.getCurrentTime();
+
+    if(currentID == null && diff >= 0) {
+      var firepadRef = firebase.database().ref("/firepads/" + transcriptKey + "/" + snapshot.key);
+
+      if(currentFirepad) {
+        currentFirepad.dispose();
+        editor.setValue("");
+        editor.clearHistory();
+        var cmelement = document.getElementsByClassName('CodeMirror')[0];
+        var ccelement = document.getElementById("current-caption");
+        ccelement.removeChild(cmelement);
+        initializeCodeMirror();
+      }
+
+      currentFirepad = Firepad.fromCodeMirror(firepadRef, editor, {richTextToolbar:false, richTextShortcuts:false});
+      currentID = snapshot.key;
+    }
+
+    else if(currentID != null && diff >= 0) {
+      var oldDiff = documents.getElementById(currentID).getAttribute("timestamp") - player.getCurrentTime();
+      if(diff <= oldDiff) {
+        var firepadRef = firebase.database().ref("/firepads/" + transcriptKey + "/" + snapshot.key);
+        if(currentFirepad) {
+          currentFirepad.dispose();
+          editor.setValue("");
+          editor.clearHistory();
+          var cmelement = document.getElementsByClassName('CodeMirror')[0];
+          var ccelement = document.getElementById("current-caption");
+          ccelement.removeChild(cmelement);
+          initializeCodeMirror();
+        }
+
+        currentFirepad = Firepad.fromCodeMirror(firepadRef, editor, {richTextToolbar:false, richTextShortcuts:false});
+        currentID = snapshot.key;
+      }
+    }
+
     console.log("div element added with id: " + snapshot.key);
 
     snapshot.ref.child("history").on("child_added", function(history) {
@@ -149,57 +197,75 @@ function listenForFirepads() {
       });
     });
   });
-
-
-  /*
-  //Need to move this to only check history!!
-  transcriptRef.on("child_changed", function(snapshot) {
-    var divElement = document.getElementById(snapshot.key);
-    var spanElement = divElement.firstChild;
-    var headless = Firebase.Headless(snapshot.ref);
-    spanElement.innerHTML = headless.getText();
-  });*/
 }
 
 //Need to make sure elements are loaded before
 function listenToPlayTime() {
   player.addHandler("currenttimechanged", function (event) {
-      var ref = firebase.database().ref("/captions/" + transcriptKey);
-      //May need to store this promise somewhere to then() off it, but I hope not...
-      ref.orderByChild("endTime").endAt(event.currentTime).limitToLast(1).once("value").then(function (snapshot) {
-        var id;
-        for(key in snapshot.val()) {
-          id = key;
+
+      var container = document.getElementById("firepad-container");
+      var childs = container.childNodes;
+      var len = childs.length;
+      var i = -1;
+      var id;
+      var bestDiff;
+
+      if(++i < len) do {
+          var currentChild = childs[i];
+          var diff = event.currentTime - currentChild.getAttribute("timestamp");
+          console.log("In loop at " + i);
+          console.log("ID is currently: " + currentChild.id);
+          console.log("Time stamp is: " + currentChild.getAttribute("timestamp"));
+          if(bestDiff == null && diff >= 0) {
+            console.log("Found new id");
+            id = currentChild.id;
+          }
+          else {
+            if (bestDiff != null && diff >= 0 && diff < bestDiff) {
+              console.log("replaced id");
+              bestDiff = diff;
+              id = currentChild.id;
+            }
+          }
+        } while(++i < len);
+
+        if(id != null && currentID == null) {
+          currentID = id;
+          var firepadRef = firebase.database().ref("/firepads/" + transcriptKey + "/" + id);
+          currentFirepad = Firepad.fromCodeMirror(firepadRef, editor, {richTextToolbar:false, richTextShortcuts:false});
         }
-        console.log("Key: " + id);
-        if(id != null && currentID !== id) {
-          scrollToSection(id);
+
+        if (id != null && currentID !== id) {
+          var firepadRef = firebase.database().ref("/firepads/" + transcriptKey + "/" + id);
+
           if(currentFirepad) {
             currentFirepad.dispose();
             editor.setValue("");
             editor.clearHistory();
+            var cmelement = document.getElementsByClassName('CodeMirror')[0];
+            var ccelement = document.getElementById("current-caption");
+            ccelement.removeChild(cmelement);
+            initializeCodeMirror();
           }
+
+          currentFirepad = Firepad.fromCodeMirror(firepadRef, editor, {richTextToolbar:false, richTextShortcuts:false});
           currentID = id;
-          currentFirepad = Firepad.fromCodeMirror(snapshot.ref.child(id), editor, {richTextToolbar:false, richTextShortcuts:false});
         }
 
         else {
           console.log("No ID was found");
-          console.log(snapshot.val());
         }
       });
-  });
 }
 
-//TODO: Ensure that element has been added to DOM, either need to keep track of
-//loaded elements somehow in firebase (seems like a pain) 
+//TODO: Ensure that element has been added to DOM, if getElementByID is null, maybe
+//try the next best option and whether an element is loaded in check if it is a better option?
+//or add a time attribute to each dom element and search those instead??
 function scrollToSection(key) {
   var firepadContainer = document.getElementById("firepad-container");
   var textBox = document.getElementById(key);
 
-  //Wait for element to be appended
-  //Will cause issues if the div element is deleted in the meantime,
-  //Need a better fix...
+  //
   textBox = document.getElementById(key);
 
   console.log("Element found for scrolling: " + textBox);
