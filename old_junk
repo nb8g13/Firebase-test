@@ -1,0 +1,23 @@
+//May need to store this promise somewhere to then() off it, but I hope not...
+/*ref.orderByChild("endTime").endAt(event.currentTime).limitToLast(1).once("value").then(function (snapshot) {
+  var id;
+  for(key in snapshot.val()) {
+    id = key;
+  }
+  console.log("Key: " + id);
+  if(id != null && currentID !== id) {
+    scrollToSection(id);
+    if(currentFirepad) {
+      currentFirepad.dispose();
+      editor.setValue("");
+      editor.clearHistory();
+      var cmelement = document.getElementsByClassName('CodeMirror')[0];
+      var ccelement = document.getElementById("current-caption");
+      ccelement.removeChild(cmelement);
+      initializeCodeMirror();
+    }
+    currentID = id;
+    //Need to make new ref - not from snapshot - as it has all the queries!
+    console.log("Creating new firepad");
+    console.log(snapshot);*/
+  //});

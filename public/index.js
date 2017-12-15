@@ -58,16 +58,16 @@ function startDatabase() {
 
   if(hash) {
     var ref = firebase.database().ref("/captions/");
-    checkExistence(dataRef.child(hash)).then(function(exists) {
+    checkExistence(ref.child(hash)).then(function(exists) {
       if (exists) {
         transcriptKey = hash;
-        loadTranscript();
+        loadScript();
       }
 
       else {
         transcriptKey = ref.push().key;
         window.location = window.location + '#' + transcriptKey;
-        initializeTranscript();
+        initTranscript();
       }
     });
   }
@@ -75,7 +75,7 @@ function startDatabase() {
   else {
     transcriptKey = firebase.database().ref("/captions/").push().key;
     window.location = window.location + '#' + transcriptKey;
-    initializeTranscript();
+    initTranscript();
   }
 }
 
@@ -88,11 +88,21 @@ function checkExistence(dataRef) {
 
 function initializeTranscript() {
   var captions = player.getCaptions();
-  captions = captions.slice(0,5);
+  //captions = captions.slice(0,5);
+
+  var promise = null;
 
   for(var i = 0; i < captions.length; i++) {
     var caption = captions[i];
-    createCaption(caption);
+    if (promise == null) {
+      promise = firebase.database().ref("/captions/" + transcriptKey).push();
+    }
+
+    else {
+      promise = promise.then(function() {
+
+      });
+    }
   }
 
   loadTranscript();
@@ -104,138 +114,168 @@ function loadTranscript() {
   listenToPlayTime();
 }
 
-function createCaption(caption) {
-  var captionRef = firebase.database().ref("/captions/" + transcriptKey).push({
-    time: caption.time,
-    endTime: caption.endTime,
-    original: caption.text
-  });
-  /*captionRef.set({
-    time: caption.time,
-    endTime: caption.endTime,
-    original: caption.text
-  });*/
+//TODO: Ensure that element has been added to DOM, if getElementByID is null, maybe
+//try the next best option and whether an element is loaded in check if it is a better option?
+//or add a time attribute to each dom element and search those instead??
+function scrollToSection(key) {
+  var firepadContainer = document.getElementById("firepad-container");
+  var textBox = document.getElementById(key);
 
-
-  /*var padRef = firebase.database().ref("/firepads/" + transcriptKey + "/" + captionRef.key);
-  var headless = Firebase.Headless(padRef);
-  headless.setText(caption.text);*/
+  textBox = document.getElementById(key);
+  console.log("Caption key we are looking for: " + key);
+  console.log("Element found for scrolling: " + textBox);
+  var offset = textBox.offsetTop;
+  firepadContainer.scrollTop = offset;
 }
 
-//Need to initialize caption text
-function listenForCaptions() {
-  var transcriptRef = firebase.database().ref("/captions/"+ transcriptKey);
-  transcriptRef.on("child_added", function(snapshot) {
-    var firepadRef = firebase.database().ref(
-      "/firepads/"+ transcriptKey + "/" + snapshot.key);
-    var headless = Firepad.Headless(firepadRef);
-    headless.setText(snapshot.val().original);
-    headless.dispose();
-  });
-}
+function initTranscript() {
 
-function listenForFirepads() {
-  var transcriptRef = firebase.database().ref("/firepads/" + transcriptKey);
-  transcriptRef.on("child_added", function(snapshot) {
+  //Returns a promise
+  var createCaption = function(caption) {
+    console.log("in creating caption");
+    var ref = firebase.database().ref("/captions/" + transcriptKey).push()
+
+    return ref.set(
+      {
+        time: caption.time,
+        endTime: caption.endTime,
+        original: caption.text
+      }
+    ).then(function() {
+      return {
+        original: caption.text,
+        captionKey: ref.key,
+        time: caption.time
+      }
+    });
+  };
+
+  //Need to make a promise here but how??
+  /*var makeElements = function(values) {
+    //console.log("making element");
     var container = document.getElementById("firepad-container");
     var divElement = document.createElement('div');
     var spanElement = document.createElement('span');
-    divElement.id = snapshot.key;
-    //Doesn't work because we need to get the time from the caption object,
-    //not the firepad one! Need to wrap this all in a promise...
-    divElement.setAttribute("timestamp", snapshot.val().time);
-    console.log("Adding timstamp attribute: " + snapshot.val().time);
-    console.log("snapshot found: " + snapshot.hasChild("time"));
+
+    //console.log("made elements");
+
+    divElement.id = values.captionKey;
+    divElement.setAttribute("timestamp", values.time);
     divElement.classList.add("section");
     container.appendChild(divElement);
     divElement.appendChild(spanElement);
 
-    var diff =  snapshot.val().endTime - player.getCurrentTime();
+    //console.log("Added html element");
 
-    if(currentID == null && diff >= 0) {
-      var firepadRef = firebase.database().ref("/firepads/" + transcriptKey + "/" + snapshot.key);
+    //error occurs here....
+    firebase.database().ref("/firepads/" + transcriptKey + "/" + values.captionKey + "/history").on(
+      "child_added", function(history) {
+        console.log("caption key " +  values.captionKey);
+        var headless = Firepad.Headless(firebase.database().ref("/firepads/" + transcriptKey + "/" + values.captionKey));
+        headless.getText(function(text) {
+          console.log("In callback");
+          spanElement.innerHTML = text;
+        });
+      });
+  };*/
 
-      if(currentFirepad) {
-        currentFirepad.dispose();
-        editor.setValue("");
-        editor.clearHistory();
-        var cmelement = document.getElementsByClassName('CodeMirror')[0];
-        var ccelement = document.getElementById("current-caption");
-        ccelement.removeChild(cmelement);
-        initializeCodeMirror();
+  var addFireRef = function(values) {
+    console.log("Adding firepad reference");
+    var ref = firebase.database().ref("/firepads/" + transcriptKey + "/" + values.captionKey);
+    var headless = Firepad.Headless(ref);
+    headless.setText(values.original, function(err, committed) {
+      headless.dispose();
+      makeElements(values);
+    });
+  };
+
+  var promiseArr = [];
+  var captions = player.getCaptions();
+  //captions = captions.slice(0,5);
+
+  for(var i = 0; i < captions.length; i++) {
+    var caption = captions[i];
+    var promise = createCaption(caption).then(addFireRef);
+
+    console.log("Not Pushing promise")
+    promiseArr.push(promise);
+  }
+
+  /*var timeChangedListener = function() {
+    player.addHandler("currenttimechanged", function(event) {
+      var id;
+      firebase.database().ref("/captions/" + transcriptKey).orderByChild("time").endAt(event.currentTime).limitToLast(1).once("value")
+        .then(function(snapshot) {
+          for (keys in snapshot.val()) {
+            id = keys;
+          }
+          if(id != null && id != currentID) {
+            //Need to set current Firepad in here
+            scrollToSection(id);
+          }
+        });
+    });
+  };*/
+
+  Promise.all(promiseArr).then(timeChangedListener);
+}
+
+function loadScript() {
+
+  firebase.database().ref("/captions/" + transcriptKey).once("value")
+    .then(function (snapshot) {
+      return snapshot.val();
+    })
+    .then(function(transcript) {
+      for (caption in transcript) {
+        var current = transcript[caption];
+        var ctime = current.time;
+        makeElements({
+          captionKey: caption,
+          time: ctime
+        });
       }
+    })
+    .then(timeChangedListener);
+}
 
-      currentFirepad = Firepad.fromCodeMirror(firepadRef, editor, {richTextToolbar:false, richTextShortcuts:false});
-      currentID = snapshot.key;
-    }
+function makeElements(values) {
+  //console.log("making element");
+  var container = document.getElementById("firepad-container");
+  var divElement = document.createElement('div');
+  var spanElement = document.createElement('span');
 
-    else if(currentID != null && diff >= 0) {
-      var oldDiff = documents.getElementById(currentID).getAttribute("timestamp") - player.getCurrentTime();
-      if(diff <= oldDiff) {
-        var firepadRef = firebase.database().ref("/firepads/" + transcriptKey + "/" + snapshot.key);
-        if(currentFirepad) {
-          currentFirepad.dispose();
-          editor.setValue("");
-          editor.clearHistory();
-          var cmelement = document.getElementsByClassName('CodeMirror')[0];
-          var ccelement = document.getElementById("current-caption");
-          ccelement.removeChild(cmelement);
-          initializeCodeMirror();
-        }
+  //console.log("made elements");
 
-        currentFirepad = Firepad.fromCodeMirror(firepadRef, editor, {richTextToolbar:false, richTextShortcuts:false});
-        currentID = snapshot.key;
-      }
-    }
+  divElement.id = values.captionKey;
+  divElement.setAttribute("timestamp", values.time);
+  divElement.classList.add("section");
+  container.appendChild(divElement);
+  divElement.appendChild(spanElement);
 
-    console.log("div element added with id: " + snapshot.key);
+  //console.log("Added html element");
 
-    snapshot.ref.child("history").on("child_added", function(history) {
-      var headless = Firepad.Headless(snapshot.ref);
+  //error occurs here....
+  firebase.database().ref("/firepads/" + transcriptKey + "/" + values.captionKey + "/history").on(
+    "child_added", function(history) {
+      console.log("caption key " +  values.captionKey);
+      var headless = Firepad.Headless(firebase.database().ref("/firepads/" + transcriptKey + "/" + values.captionKey));
       headless.getText(function(text) {
+        console.log("In callback");
         spanElement.innerHTML = text;
       });
     });
-  });
 }
 
-//Need to make sure elements are loaded before
-function listenToPlayTime() {
-  player.addHandler("currenttimechanged", function (event) {
-
-      var container = document.getElementById("firepad-container");
-      var childs = container.childNodes;
-      var len = childs.length;
-      var i = -1;
-      var id;
-      var bestDiff;
-
-      if(++i < len) do {
-          var currentChild = childs[i];
-          var diff = event.currentTime - currentChild.getAttribute("timestamp");
-          console.log("In loop at " + i);
-          console.log("ID is currently: " + currentChild.id);
-          console.log("Time stamp is: " + currentChild.getAttribute("timestamp"));
-          if(bestDiff == null && diff >= 0) {
-            console.log("Found new id");
-            id = currentChild.id;
-          }
-          else {
-            if (bestDiff != null && diff >= 0 && diff < bestDiff) {
-              console.log("replaced id");
-              bestDiff = diff;
-              id = currentChild.id;
-            }
-          }
-        } while(++i < len);
-
-        if(id != null && currentID == null) {
-          currentID = id;
-          var firepadRef = firebase.database().ref("/firepads/" + transcriptKey + "/" + id);
-          currentFirepad = Firepad.fromCodeMirror(firepadRef, editor, {richTextToolbar:false, richTextShortcuts:false});
+function timeChangedListener() {
+  player.addHandler("currenttimechanged", function(event) {
+    var id;
+    firebase.database().ref("/captions/" + transcriptKey).orderByChild("time").endAt(event.currentTime).limitToLast(1).once("value")
+      .then(function(snapshot) {
+        for (keys in snapshot.val()) {
+          id = keys;
         }
-
-        if (id != null && currentID !== id) {
+        if(id != null && id != currentID) {
           var firepadRef = firebase.database().ref("/firepads/" + transcriptKey + "/" + id);
 
           if(currentFirepad) {
@@ -250,25 +290,8 @@ function listenToPlayTime() {
 
           currentFirepad = Firepad.fromCodeMirror(firepadRef, editor, {richTextToolbar:false, richTextShortcuts:false});
           currentID = id;
-        }
-
-        else {
-          console.log("No ID was found");
+          scrollToSection(id);
         }
       });
-}
-
-//TODO: Ensure that element has been added to DOM, if getElementByID is null, maybe
-//try the next best option and whether an element is loaded in check if it is a better option?
-//or add a time attribute to each dom element and search those instead??
-function scrollToSection(key) {
-  var firepadContainer = document.getElementById("firepad-container");
-  var textBox = document.getElementById(key);
-
-  //
-  textBox = document.getElementById(key);
-
-  console.log("Element found for scrolling: " + textBox);
-  var offset = textBox.offsetTop;
-  firepadContainer.scrollTop = offset;
+  });
 }
