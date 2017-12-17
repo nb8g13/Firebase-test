@@ -315,22 +315,23 @@ function addTranscriptUser() {
   var ref = firebase.database().ref("/transcripts/" + transcriptKey).push({
     id: "placeholder"
   });
-  var testDummy = firebase.database().ref("/transcripts/" + transcriptKey + "/dummy").set({
-    id: "placeholder"
-  });
+  //Local test
+  //var testDummy = firebase.database().ref("/transcripts/" + transcriptKey + "/dummy").set({
+    //id: "placeholder"
+  //});
   console.log("user added: " + ref.key);
   ref.onDisconnect().remove();
 }
 
 //Need to be aware that the serial creation of listeners may cause distributed
 //issues with a removal being completed before the removal listener is added
-//although SO seems to think this is a non-issue - tested for local changes and not work
+//although SO seems to think this is a non-issue - tested for local changes and does not work
 function addTranscriptListener() {
   console.log("adding transcript listener");
   var ref = firebase.database().ref("/transcripts/" + transcriptKey);
   console.log("at on operations");
   //Test removal...
-  firebase.database().ref("/transcripts" + transcriptKey + "/dummy").remove();
+  //firebase.database().ref("/transcripts" + transcriptKey + "/dummy").remove();
   ref.on("child_removed", function(child) {
     noUsers--;
     console.log("number of users: " + noUsers);
