@@ -5,7 +5,7 @@ var transcriptKey;
 var editor;
 var currentFirepad;
 var currentID;
-
+var noUsers = 0;
 
 function startFirebase() {
   var config = {
@@ -122,8 +122,8 @@ function scrollToSection(key) {
   var textBox = document.getElementById(key);
 
   textBox = document.getElementById(key);
-  console.log("Caption key we are looking for: " + key);
-  console.log("Element found for scrolling: " + textBox);
+  //console.log("Caption key we are looking for: " + key);
+  //console.log("Element found for scrolling: " + textBox);
   var offset = textBox.offsetTop;
   firepadContainer.scrollTop = offset;
 }
@@ -132,7 +132,7 @@ function initTranscript() {
 
   //Returns a promise
   var createCaption = function(caption) {
-    console.log("in creating caption");
+    //console.log("in creating caption");
     var ref = firebase.database().ref("/captions/" + transcriptKey).push()
 
     return ref.set(
@@ -180,7 +180,7 @@ function initTranscript() {
   };*/
 
   var addFireRef = function(values) {
-    console.log("Adding firepad reference");
+    //console.log("Adding firepad reference");
     var ref = firebase.database().ref("/firepads/" + transcriptKey + "/" + values.captionKey);
     var headless = Firepad.Headless(ref);
     headless.setText(values.original, function(err, committed) {
@@ -197,7 +197,7 @@ function initTranscript() {
     var caption = captions[i];
     var promise = createCaption(caption).then(addFireRef);
 
-    console.log("Not Pushing promise")
+    //console.log("Not Pushing promise")
     promiseArr.push(promise);
   }
 
@@ -217,7 +217,10 @@ function initTranscript() {
     });
   };*/
 
-  Promise.all(promiseArr).then(timeChangedListener);
+  Promise.all(promiseArr)
+  .then(timeChangedListener)
+  .then(addTranscriptUser)
+  .then(addTranscriptListener);
 }
 
 function loadScript() {
@@ -236,7 +239,9 @@ function loadScript() {
         });
       }
     })
-    .then(timeChangedListener);
+    .then(timeChangedListener)
+    .then(addTranscriptUser)
+    .then(addTranscriptListener);
 }
 
 function makeElements(values) {
@@ -258,10 +263,10 @@ function makeElements(values) {
   //error occurs here....
   firebase.database().ref("/firepads/" + transcriptKey + "/" + values.captionKey + "/history").on(
     "child_added", function(history) {
-      console.log("caption key " +  values.captionKey);
+      //console.log("caption key " +  values.captionKey);
       var headless = Firepad.Headless(firebase.database().ref("/firepads/" + transcriptKey + "/" + values.captionKey));
       headless.getText(function(text) {
-        console.log("In callback");
+        //console.log("In callback");
         spanElement.innerHTML = text;
       });
     });
@@ -293,5 +298,45 @@ function timeChangedListener() {
           scrollToSection(id);
         }
       });
+  });
+}
+
+//Not used as can't pass transcript to onDisconnect
+function incrementUserCount(number) {
+  var ref = firebase.database().ref("/transcripts/" + transcriptKey + "/count");
+  ref.transaction(function(count) {
+    count = count + number;
+    return count;
+  });
+}
+
+function addTranscriptUser() {
+  console.log("Adding transcript user");
+  var ref = firebase.database().ref("/transcripts/" + transcriptKey).push({
+    id: "placeholder"
+  });
+  var testDummy = firebase.database().ref("/transcripts/" + transcriptKey + "/dummy").set({
+    id: "placeholder"
+  });
+  console.log("user added: " + ref.key);
+  ref.onDisconnect().remove();
+}
+
+//Need to be aware that the serial creation of listeners may cause distributed
+//issues with a removal being completed before the removal listener is added
+//although SO seems to think this is a non-issue - tested for local changes and not work
+function addTranscriptListener() {
+  console.log("adding transcript listener");
+  var ref = firebase.database().ref("/transcripts/" + transcriptKey);
+  console.log("at on operations");
+  //Test removal...
+  firebase.database().ref("/transcripts" + transcriptKey + "/dummy").remove();
+  ref.on("child_removed", function(child) {
+    noUsers--;
+    console.log("number of users: " + noUsers);
+  });
+  ref.on("child_added", function(child) {
+    noUsers++;
+    console.log("number of users: " + noUsers);
   });
 }
