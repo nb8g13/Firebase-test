@@ -219,6 +219,7 @@ function initTranscript() {
 
   Promise.all(promiseArr)
   .then(timeChangedListener)
+  .then(setUpCounter)
   .then(addTranscriptUser)
   .then(addTranscriptListener);
 }
@@ -303,24 +304,30 @@ function timeChangedListener() {
 
 //Not used as can't pass transcript to onDisconnect
 function incrementUserCount(number) {
-  var ref = firebase.database().ref("/transcripts/" + transcriptKey + "/count");
+  var ref = firebase.database().ref("/transcripts/" + transcriptKey + "/counter");
   ref.transaction(function(count) {
     count = count + number;
     return count;
   });
 }
 
+function setUpCounter() {
+  return firebase.database().ref("/transcripts/" + transcriptKey + "/counter").set(0);
+}
+
 function addTranscriptUser() {
   console.log("Adding transcript user");
-  var ref = firebase.database().ref("/transcripts/" + transcriptKey).push({
+  //move this around!!
+  var ref = firebase.database().ref("/transcripts/" + transcriptKey + "/users").push({
     id: "placeholder"
   });
+  ref.onDisconnect().remove();
+
+
   //Local test
   //var testDummy = firebase.database().ref("/transcripts/" + transcriptKey + "/dummy").set({
     //id: "placeholder"
   //});
-  console.log("user added: " + ref.key);
-  ref.onDisconnect().remove();
 }
 
 //Need to be aware that the serial creation of listeners may cause distributed
@@ -328,16 +335,11 @@ function addTranscriptUser() {
 //although SO seems to think this is a non-issue - tested for local changes and does not work
 function addTranscriptListener() {
   console.log("adding transcript listener");
-  var ref = firebase.database().ref("/transcripts/" + transcriptKey);
+  var ref = firebase.database().ref("/transcripts/" + transcriptKey + "/counter");
   console.log("at on operations");
   //Test removal...
   //firebase.database().ref("/transcripts" + transcriptKey + "/dummy").remove();
-  ref.on("child_removed", function(child) {
-    noUsers--;
-    console.log("number of users: " + noUsers);
-  });
-  ref.on("child_added", function(child) {
-    noUsers++;
-    console.log("number of users: " + noUsers);
+  ref.on("value", function(count) {
+    console.log("Current number of users: " + count.val());
   });
 }
