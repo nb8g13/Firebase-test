@@ -13,7 +13,7 @@ var transcriptKey;
 var editor;
 var currentFirepad;
 var currentID;
-var noUsers = 0;
+var i = 0;
 
 function startFirebase() {
   var config = {
@@ -55,6 +55,7 @@ function initializeCodeMirror() {
 }
 
 function getPlayerReference(callback) {
+  console.log("Getting player reference");
   player = new Mediasite.Player( "player",
     {
       url: url + (url.indexOf("?") == -1 ? "?" : "&") + "player=MediasiteIntegration",
@@ -84,7 +85,7 @@ function startDatabase() {
       else {
         conole.log("in first else");
         transcriptKey = ref.push().key;
-        window.location = window.location + '#' + transcriptKey;
+        window.location.hash = window.location.hash + '#' + transcriptKey;
         //console.log("new window location: " + window.location.split('#')[0] + '#' + transcriptKey);
         initTranscript();
       }
@@ -93,7 +94,7 @@ function startDatabase() {
 
   else {
     transcriptKey = firebase.database().ref("/captions/").push().key;
-    window.location = window.location + "#" + transcriptKey;
+    window.location.hash = window.location.hash + "#" + transcriptKey;
     //console.log("hash is: " + window.location.hash);
     //history.replaceState(undefined, undefined, '#' + transcriptKey);
     //console.log("hash is " + window.location.hash);
@@ -108,37 +109,7 @@ function checkExistence(dataRef) {
   });
 }
 
-function initializeTranscript() {
-  var captions = player.getCaptions();
-  //captions = captions.slice(0,5);
 
-  var promise = null;
-
-  for(var i = 0; i < captions.length; i++) {
-    var caption = captions[i];
-    if (promise == null) {
-      promise = firebase.database().ref("/captions/" + transcriptKey).push();
-    }
-
-    else {
-      promise = promise.then(function() {
-
-      });
-    }
-  }
-
-  loadTranscript();
-}
-
-function loadTranscript() {
-  listenForCaptions();
-  listenForFirepads();
-  listenToPlayTime();
-}
-
-//TODO: Ensure that element has been added to DOM, if getElementByID is null, maybe
-//try the next best option and whether an element is loaded in check if it is a better option?
-//or add a time attribute to each dom element and search those instead??
 function scrollToSection(key) {
   var firepadContainer = document.getElementById("firepad-container");
   var textBox = document.getElementById(key);
@@ -151,7 +122,7 @@ function scrollToSection(key) {
 }
 
 function initTranscript() {
-
+  console.log("init transcript called");
   //Returns a promise
   var createCaption = function(caption) {
     //console.log("in creating caption");
@@ -172,42 +143,13 @@ function initTranscript() {
     });
   };
 
-  //Need to make a promise here but how??
-  /*var makeElements = function(values) {
-    //console.log("making element");
-    var container = document.getElementById("firepad-container");
-    var divElement = document.createElement('div');
-    var spanElement = document.createElement('span');
-
-    //console.log("made elements");
-
-    divElement.id = values.captionKey;
-    divElement.setAttribute("timestamp", values.time);
-    divElement.classList.add("section");
-    container.appendChild(divElement);
-    divElement.appendChild(spanElement);
-
-    //console.log("Added html element");
-
-    //error occurs here....
-    firebase.database().ref("/firepads/" + transcriptKey + "/" + values.captionKey + "/history").on(
-      "child_added", function(history) {
-        console.log("caption key " +  values.captionKey);
-        var headless = Firepad.Headless(firebase.database().ref("/firepads/" + transcriptKey + "/" + values.captionKey));
-        headless.getText(function(text) {
-          console.log("In callback");
-          spanElement.innerHTML = text;
-        });
-      });
-  };*/
-
   var addFireRef = function(values) {
     //console.log("Adding firepad reference");
     var ref = firebase.database().ref("/firepads/" + transcriptKey + "/" + values.captionKey);
     var headless = Firepad.Headless(ref);
     headless.setText(values.original, function(err, committed) {
       headless.dispose();
-      makeElements(values);
+      //makeElements(values);
     });
   };
 
@@ -223,31 +165,12 @@ function initTranscript() {
     promiseArr.push(promise);
   }
 
-  /*var timeChangedListener = function() {
-    player.addHandler("currenttimechanged", function(event) {
-      var id;
-      firebase.database().ref("/captions/" + transcriptKey).orderByChild("time").endAt(event.currentTime).limitToLast(1).once("value")
-        .then(function(snapshot) {
-          for (keys in snapshot.val()) {
-            id = keys;
-          }
-          if(id != null && id != currentID) {
-            //Need to set current Firepad in here
-            scrollToSection(id);
-          }
-        });
-    });
-  };*/
-
   Promise.all(promiseArr)
-  .then(timeChangedListener)
   .then(setUpCounter)
-  .then(addTranscriptUser)
-  .then(addTranscriptListener);
 }
 
 function loadScript() {
-
+  console.log("Load script called");
   firebase.database().ref("/captions/" + transcriptKey).once("value")
     .then(function (snapshot) {
       return snapshot.val();
@@ -318,10 +241,12 @@ function setUpCounter() {
 
 function addTranscriptUser() {
   console.log("Adding transcript user");
-  var ref = firebase.database().ref("/transcripts/" + transcriptKey + "/users").push({
+
+  var ref = firebase.database().ref("/transcripts/" + transcriptKey + "/users").push();
+  ref.onDisconnect().remove();
+  ref.set({
     id: "placeholder"
   });
-  ref.onDisconnect().remove();
 
 
   //Local test
@@ -351,11 +276,11 @@ function addTranscriptListener() {
  */
 function createSectionHeaderElement(values) {
     var sectionHeaderElement = $('<div class="section-header"></div>');
-
-    sectionHeaderElement.append(createSectionTimeStampElement(values.time));
-    //sectionHeaderElement.append(createSectionSpeakerElement(section));
-
+    var timestamp = createSectionTimeStampElement(values.time)
+    sectionHeaderElement.append(timestamp);
+    //sectionHeaderElement.append(createSectionSpeakerElement(section)); - NOT VALUD
     return sectionHeaderElement;
+    //return timestamp;
 }
 
 function formatStartTime(startTime) {
@@ -369,6 +294,7 @@ function formatStartTime(startTime) {
 function createSectionTimeStampElement(time) {
     //var sectionTimestampElement = $('<input type="text" size="12" maxlength="16" class="section-timestamp" value="' + formatStartTime(section.startTime) + '" />'); - to enable editing remove the disabled property HERE
     var sectionTimestampElement = $('<div class="ui top left attached label"><input class="label-formatting" placeholder="Speaker" type="text" size="12" maxlength="16" class="section-timestamp" value="' + formatStartTime(time) + '" disabled /></div>');
+    //var sectionTimestampElement = $("<div class='ui top left attached label'>"+time+"</div>");
     return sectionTimestampElement;
 }
 
@@ -380,6 +306,7 @@ function createSectionEditorElement(values) {
     //var sectionEditorElement = $('<div contentEditable="true" class="section-editor our-form-control"></div>');
 
     var sectionEditorElement = $('<div class="description section-editor our-form-control" contentEditable="false"></div>');
+    //var sectionEditorElement = $('<div class="description" contentEditable="false"></div>');
     var spanElement = $('<p></p>');
     sectionEditorElement.append(spanElement);
 
@@ -481,6 +408,7 @@ function createSectionElement(values){
     // create a section element for this section object
     //var sectionElement = $('<div class="section"></div>');
     var sectionElement = $('<div class="ui card section"></div>');
+    //var sectionElement = $('<div class="content"></div>');
 
     sectionElement.attr('id', values.captionKey);
     sectionElement.attr('time', values.time);
