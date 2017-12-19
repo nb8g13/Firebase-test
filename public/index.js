@@ -75,16 +75,17 @@ function startDatabase() {
   //angular router has hash in url  already so add this check instaed
   if(hash !== "/") {
     var ref = firebase.database().ref("/captions/");
-    checkExistence(ref.child(hash)).then(function(exists) {
+    checkExistence(ref.child(hash.replace(/\//g, ""))).then(function(exists) {
       if (exists) {
-        transcriptKey = hash;
+        transcriptKey = hash.replace(/\//g, "");
         loadScript();
       }
 
       else {
+        conole.log("in first else");
         transcriptKey = ref.push().key;
-        window.location = window.location.split('#')[0] + '#' + transcriptKey;
-        console.log("new window location: " + window.location.split('#')[0] + '#' + transcriptKey);
+        window.location = window.location + '#' + transcriptKey;
+        //console.log("new window location: " + window.location.split('#')[0] + '#' + transcriptKey);
         initTranscript();
       }
     });
@@ -92,9 +93,10 @@ function startDatabase() {
 
   else {
     transcriptKey = firebase.database().ref("/captions/").push().key;
-    console.log("hash is: " + window.location.hash);
-    history.replaceState(undefined, undefined, '#' + transcriptKey);
-    console.log("hash is " + window.location.hash);
+    window.location = window.location + "#" + transcriptKey;
+    //console.log("hash is: " + window.location.hash);
+    //history.replaceState(undefined, undefined, '#' + transcriptKey);
+    //console.log("hash is " + window.location.hash);
     initTranscript();
   }
 }
