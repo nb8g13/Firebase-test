@@ -1,0 +1,40 @@
+/*styles for the site*/
+.center {
+  text-align: center;
+}
+
+.grey {
+  color: grey;
+}
+
+.inner-panel {
+  height: 100%;
+  overflow-y: auto;
+  /*will only add scroll when needed*/
+}
+
+#vid {
+  /*background-color: blue;*/
+  width: 100%;
+  height: 150vh;
+}
+
+#editor {
+  /*background-color: #bcb7b8;*/
+  width: 100%;
+  height: 150vh;
+  /*overflow-y:auto; /*will only add scroll when needed*/
+}
+
+div.ui.sticky.icon.menu.remove-pad {
+  margin-top: -14px;
+  /*background-color: #FFCE6B; lighter yellow*/
+  background-color: #FFA900;
+}
+
+
+div.ui.card {
+  margin-top: 2%;
+  /*no working - orginal in min.css */
+  margin-bottom: 4%;
+}

@@ -1,0 +1,68 @@
+<div class="ui teal inverted menu">
+    <div class="item left">
+        <h2>Synote</h2>
+    </div>
+    <a class="item">
+   Help
+ </a>
+    <a class="item">
+   Tutorial
+ </a>
+</div>
+
+
+<div ng-controller="MainController">
+    <div class="ui grid">
+        <div id="vid" class="seven wide column">
+            <div class="ui container">
+                <div class="center">
+                    <div class="video-container" id="main-box" style="display: block;">
+                        <!-- this div will be replaced by a mediasite player -->
+                        <div id="player" class="nascent-player"></div>
+                        <!-- this div will be replaced by the mediasite controls -->
+                        <div id="controls" class="controls"></div>
+                    </div>
+                    <p class="grey" style="font-size: x-small;"> SHIFT + SPACE to PLAY/PAUSE <a href="#">More Shortcuts</a></p>
+                   <!--  <div class="ui card">
+                        <div class="content">
+                            <div class="description">
+                                <p id="currentCaption">Current Caption</p>
+                            </div>
+                        </div>
+                    </div> -->
+                    <div id="current-caption"></div>
+
+                </div>
+                <div class="ui divider"></div>
+                <div class="details">
+                    <!-- <button style="float:right;" class="circular basic ui icon button">
+            <i class="angle up icon" style="color:#6a6263;font-weight: bold;font-size:20px"></i>
+          </button> -->
+                    <h3>Usability + Accessibility+ UX</h3>
+                    <h4 class="grey">Publish on 2/10/2017</h4>
+                    <span class="grey">
+            <i class="user icon"></i> Mike Wald
+          </span>
+                </div>
+            </div>
+        </div>
+        <div id="editor" class="nine wide column">
+            <!--sticky tool bar -->
+            <div class="ui sticky icon menu remove-pad">
+                <a class="item">
+          <i class="unhide icon"></i>
+        </a>
+                <a class="item">
+          <i class="undo icon"></i>
+        </a>
+                <a class="item">
+          <i class="repeat  icon"></i>
+        </a>
+            </div>
+            <div id="transcript" class="inner-panel">
+                <div id="auth-container"></div>
+                <div id="firepad-container"></div>
+            </div>
+        </div>
+    </div>
+</div>

@@ -1,3 +1,11 @@
+angular.module('app').controller("MainController", function($scope, $rootScope, $location) {
+
+
+  $scope.$on('$viewContentLoaded', function() {
+      console.log("starting firebase");
+      startFirebase();
+  });
+   
 var url = "https://sofo.mediasite.com/Mediasite/Play/d64d7806bcc14f95a3c57633bcfd30c31d";
 var player;
 var controls;
@@ -17,8 +25,15 @@ function startFirebase() {
     messagingSenderId: "807025189838"
   };
 
-  firebase.initializeApp(config);
-
+  try {
+      firebase.initializeApp(config);
+    } catch (err) {
+      // we skip the "already exists" message which is
+      // not an actual error when we're hot-reloading
+      if (!/already exists/.test(err.message)) {
+        console.error('Firebase initialization error', err.stack)
+      }
+    }
   var uiConfig = {
     signInSuccessUrl: '/',
     signInOptions: [
@@ -30,6 +45,7 @@ function startFirebase() {
   //change callback here
   var ui = new firebaseui.auth.AuthUI(firebase.auth());
   ui.start('#auth-container', uiConfig);
+  ui.delete(); //delete ui or it will cause an error
   initializeCodeMirror();
   getPlayerReference(startDatabase);
 }
@@ -56,7 +72,8 @@ function getPlayerReference(callback) {
 function startDatabase() {
   var hash = window.location.hash.replace(/#/g, '');
 
-  if(hash) {
+  //angular router has hash in url  already so add this check instaed
+  if(hash !== "/") {
     var ref = firebase.database().ref("/captions/");
     checkExistence(ref.child(hash)).then(function(exists) {
       if (exists) {
@@ -343,3 +360,4 @@ function addTranscriptListener() {
     console.log("Current number of users: " + count.val());
   });
 }
+});
