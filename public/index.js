@@ -322,69 +322,55 @@ function createSectionEditorElement(values) {
 
     //console.log(str);
     //console.log(allSections);
+    //Move these to the window level
+    sectionEditorElement.keydown(function (event) {
 
-    /*sectionEditorElement.keydown(function (event) {
-
-        // console.log(event);
-
-        //Move section up
-        //Keycode 38 = CTRL+ALT+UP
-        if(event.keyCode === 38 && event.ctrlKey && event.altKey) {
-            var currentSectionId = section.id;
-            var currentSectionIdx = getSectionIndexById(currentSectionId);
-            if(currentSectionIdx > 0) {
-                app.transcript.move(currentSectionIdx, currentSectionIdx - 1);
-            }
-        }
-
-        //Move section down
-        //Keycode 40 = CTRL+ALT+DOWN
-        if(event.keyCode === 40 && event.ctrlKey && event.altKey) {
-            var currentSectionId = section.id;
-            var currentSectionIdx = getSectionIndexById(currentSectionId);
-            if(currentSectionIdx < app.transcript.length - 1) {
-                // Has to be +2 because moves to 'just before' destination index
-                app.transcript.move(currentSectionIdx, currentSectionIdx + 2);
-            }
-        }
 
         if (event.keyCode == 37 && event.shiftKey) {
             event.preventDefault();
-            var currentSectionId = section.id;
-            var currentSectionIdx = getSectionIndexById(currentSectionId);
 
-            if(currentSectionIdx > 0) {
-              //console.log("Moving back");
-              var upSection = app.transcript.get(currentSectionIdx - 1);
-              //console.log(`going to time: ${upSection.startTime}`);
-              scrollToSection(upSection);
-              setPlayerTime(upSection.startTime);
-              $(`#${upSection.id} .section-editor`).focus();
-
-            }
-
-            else {
-              setPlayerTime(section.startTime);
-            }
+            firebase.database().ref("/captions/" + trancriptKey).orderByChild("time").endAt(getPlayerTime())
+            .limitToLast(2).once("value").then(function (snapshot) {
+              var value = snapshot.val();
+              var i = 0;
+              for (key in value) {
+                return value[key].time;
+              }
+            }).then(function(time) {
+                setPlayerTime(time);
+            });
         }
 
         if (event.keyCode == 39 && event.shiftKey) {
           event.preventDefault();
-          var currentSectionId = section.id;
-          var currentSectionIdx = getSectionIndexById(currentSectionId);
+          firebase.database().ref("/captions/" + transcriptKey).orderByChild("time").startAt(getPlayerTime())
+          .limitToLast(2).once("value").then(function(snapshot) {
+            var value = snapshot.val();
+            var numKeys = Object.keys(value).length;
+            var count = 1;
+            if(numKeys == 2) {
+              for (key in value) {
+                if(count == 2) {
+                  return value[key].time;
+                }
 
-          if(currentSectionIdx < app.transcript.length - 1) {
-              var downSection = app.transcript.get(currentSectionIdx + 1);
-              scrollToSection(downSection);
-              setPlayerTime(downSection.startTime);
-              $(`#${downSection.id} .section-editor`).focus();
-          }
+                else {
+                  count++;
+                }
+              }
+            }
 
-          else {
-            setPlayerTime(player.getDuration);
-          }
+            else {
+              for (key in value) {
+                return value[key].time;
+              }
+            }
+          }).then(function (time) {
+            setPlayerTime(time);
+          });
         }
 
+        //
         if (event.keyCode == 8 && event.shiftKey) {
           event.preventDefault();
           setPlayerTime(section.startTime);
@@ -394,7 +380,7 @@ function createSectionEditorElement(values) {
           event.preventDefault();
           togglePlayPause();
         }
-    });*/
+    });
 
     return sectionEditorElement;
 }
