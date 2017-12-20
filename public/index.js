@@ -13,7 +13,9 @@ var transcriptKey;
 var editor;
 var currentFirepad;
 var currentID;
-var i = 0;
+var playKeyDown = false;
+var playing = false;
+var noUsers;
 
 function startFirebase() {
   var config = {
@@ -43,10 +45,10 @@ function startFirebase() {
   };
 
   //change callback here
-  var ui = new firebaseui.auth.AuthUI(firebase.auth());
-  ui.start('#auth-container', uiConfig);
-  ui.delete(); //delete ui or it will cause an error
-  initializeCodeMirror();
+  //var ui = new firebaseui.auth.AuthUI(firebase.auth());
+  //ui.start('#auth-container', uiConfig);
+  //ui.delete(); //delete ui or it will cause an error
+  //initializeCodeMirror();
   getPlayerReference(startDatabase);
 }
 
@@ -60,7 +62,8 @@ function getPlayerReference(callback) {
     {
       url: url + (url.indexOf("?") == -1 ? "?" : "&") + "player=MediasiteIntegration",
       events: {
-                    "ready":   callback
+                    "ready":   callback,
+                    "playstatechanged": updatePlayingState
               }
     });
 
@@ -111,14 +114,18 @@ function checkExistence(dataRef) {
 
 
 function scrollToSection(key) {
-  var firepadContainer = document.getElementById("firepad-container");
-  var textBox = document.getElementById(key);
+  //var firepadContainer = document.getElementById("firepad-container");
+  //var textBox = document.getElementById(key);
   console.log("scrolling");
-  textBox = document.getElementById(key);
+  //textBox = document.getElementById(key);
   //console.log("Caption key we are looking for: " + key);
   //console.log("Element found for scrolling: " + textBox);
-  var offset = textBox.offsetTop;
-  firepadContainer.scrollTop = offset;
+  //var offset = textBox.offsetTop;
+  //firepadContainer.scrollTop = offset;
+
+  $('#firepad-container').scrollTop(
+    $('#'+key).offset().top - $('#firepad-container').offset().top + $('#firepad-container').scrollTop()
+  );
 }
 
 function initTranscript() {
@@ -187,7 +194,8 @@ function loadScript() {
     })
     .then(timeChangedListener)
     .then(addTranscriptUser)
-    .then(addTranscriptListener);
+    .then(addTranscriptListener)
+    .then(addDocumentListeners);
 }
 
 function makeElements(values) {
@@ -215,9 +223,9 @@ function timeChangedListener() {
             var cmelement = document.getElementsByClassName('CodeMirror')[0];
             var ccelement = document.getElementById("current-caption");
             ccelement.removeChild(cmelement);
-            initializeCodeMirror();
           }
 
+          initializeCodeMirror();
           currentFirepad = Firepad.fromCodeMirror(firepadRef, editor, {richTextToolbar:false, richTextShortcuts:false});
           currentID = id;
           scrollToSection(id);
@@ -266,6 +274,8 @@ function addTranscriptListener() {
   //firebase.database().ref("/transcripts" + transcriptKey + "/dummy").remove();
   ref.on("value", function(count) {
     console.log("Current number of users: " + count.val());
+    noUsers = count.val();
+    $('.collabno').text(noUsers);
   });
 }
 
@@ -320,68 +330,6 @@ function createSectionEditorElement(values) {
         });
       });
 
-    //console.log(str);
-    //console.log(allSections);
-    //Move these to the window level
-    sectionEditorElement.keydown(function (event) {
-
-
-        if (event.keyCode == 37 && event.shiftKey) {
-            event.preventDefault();
-
-            firebase.database().ref("/captions/" + trancriptKey).orderByChild("time").endAt(getPlayerTime())
-            .limitToLast(2).once("value").then(function (snapshot) {
-              var value = snapshot.val();
-              var i = 0;
-              for (key in value) {
-                return value[key].time;
-              }
-            }).then(function(time) {
-                setPlayerTime(time);
-            });
-        }
-
-        if (event.keyCode == 39 && event.shiftKey) {
-          event.preventDefault();
-          firebase.database().ref("/captions/" + transcriptKey).orderByChild("time").startAt(getPlayerTime())
-          .limitToLast(2).once("value").then(function(snapshot) {
-            var value = snapshot.val();
-            var numKeys = Object.keys(value).length;
-            var count = 1;
-            if(numKeys == 2) {
-              for (key in value) {
-                if(count == 2) {
-                  return value[key].time;
-                }
-
-                else {
-                  count++;
-                }
-              }
-            }
-
-            else {
-              for (key in value) {
-                return value[key].time;
-              }
-            }
-          }).then(function (time) {
-            setPlayerTime(time);
-          });
-        }
-
-        //
-        if (event.keyCode == 8 && event.shiftKey) {
-          event.preventDefault();
-          setPlayerTime(section.startTime);
-        }
-
-        if(event.keyCode == 32 && event.shiftKey) {
-          event.preventDefault();
-          togglePlayPause();
-        }
-    });
-
     return sectionEditorElement;
 }
 
@@ -409,9 +357,9 @@ function createSectionElement(values){
 
 // Needs to be set to true as event triggers when the player first loads
 // Could be more lightweight maybe?
-var playing = false;
 function updatePlayingState(eventData) {
     //playing = !playing;
+    console.log("play state changed");
     state = eventData.playState;
     if (state == "playing") {
       playing = true;
@@ -481,7 +429,6 @@ function secondsToHms(d) {
     return (h+':'+m+':'+s+', '+ms);
 }
 
-
 /**
  * Convert a timestamp string to milliseconds
  * @param timestamp A string containing at least HH:MM:SS, SSS
@@ -503,6 +450,122 @@ function hmsToSeconds(timestamp) {
     }
 }
 
+function addDocumentListeners() {
+  document.addEventListener("keydown", function (event) {
+      if (event.keyCode == 37 && event.shiftKey) {
+          event.preventDefault();
 
+          firebase.database().ref("/captions/" + transcriptKey).orderByChild("time").endAt(getPlayerTime())
+          .limitToLast(2).once("value").then(function (snapshot) {
+            var value = snapshot.val();
+            var i = 0;
+            for (key in value) {
+              return value[key].time;
+            }
+          }).then(function(time) {
+              setPlayerTime(time);
+          });
+      }
+
+      if (event.keyCode == 39 && event.shiftKey) {
+        event.preventDefault();
+        firebase.database().ref("/captions/" + transcriptKey).orderByChild("time").startAt(getPlayerTime())
+        .limitToFirst(2).once("value").then(function(snapshot) {
+          var value = snapshot.val();
+          var numKeys = Object.keys(value).length;
+          var count = 1;
+          if(numKeys == 2) {
+            for (key in value) {
+              if(count == 2) {
+                return value[key].time;
+              }
+
+              else {
+                count++;
+              }
+            }
+          }
+
+          else {
+            for (key in value) {
+              return value[key].time;
+            }
+          }
+        }).then(function (time) {
+          setPlayerTime(time);
+        });
+      }
+
+      //
+      if (event.keyCode == 8 && event.shiftKey) {
+        event.preventDefault();
+        firebase.database().ref("/captions/" + transcriptKey).orderByChild("time").endAt(getPlayerTime()).limitToLast(1)
+        .once("value").then(function(snapshot) {
+          var value = snapshot.val();
+          for(key in value) {
+            return value[key].time;
+          }
+        }).then(function(time) {
+          setPlayerTime(time);
+        });
+      }
+
+      if(event.keyCode == 32 && event.shiftKey) {
+        event.preventDefault();
+        togglePlayPause();
+      }
+
+      //F7 rewind 10 seconds
+      if(event.keyCode === 118 && event.ctrlKey) {
+        var time = getPlayerTime();
+        var cor = time < 10? 0 : time - 10;
+        setPlayerTime(cor);
+      }
+
+      //F8 forward 10 seconds
+      if(event.keyCode === 119 && event.ctrlKey) {
+        var time = getPlayerTime();
+        var duration = getDuration();
+        var cor = duration - time < 10? duration : time + 10;
+        setPlayerTime(cor);
+      }
+
+      //F9 key held down will play
+      if(event.keyCode === 120 && !playKeyDown) {
+        playKeyDown = true;
+
+        if (!playing) {
+          togglePlayPause();
+        }
+      }
+  }, false);
+
+  document.addEventListener('keyup', function(event) {
+    //f9 key released will pause audio
+    if(event.keyCode === 120 && playKeyDown) {
+        playKeyDown = false;
+        togglePlayPause();
+    }
+  }, false);
+
+  $('.collabno').text(noUsers);
+  $('.unhide.icon')
+    .popup({
+      popup: '.special.popup'
+    });
+
+}
+
+
+function updatePlayingState(eventData) {
+    //playing = !playing;
+    state = eventData.playState;
+    if (state == "playing") {
+      playing = true;
+    }
+    else {
+      playing = false;
+    }
+}
 
 });
