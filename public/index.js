@@ -293,7 +293,7 @@ function formatStartTime(startTime) {
  */
 function createSectionTimeStampElement(time) {
     //var sectionTimestampElement = $('<input type="text" size="12" maxlength="16" class="section-timestamp" value="' + formatStartTime(section.startTime) + '" />'); - to enable editing remove the disabled property HERE
-    var sectionTimestampElement = $('<div class="ui top left attached label"><input class="label-formatting" placeholder="Speaker" type="text" size="12" maxlength="16" class="section-timestamp" value="' + formatStartTime(time) + '" disabled /></div>');
+    var sectionTimestampElement = $('<div class="ui top left attached label"><input class="label-formatting" placeholder="Speaker" type="text" size="10" maxlength="16" class="section-timestamp" value="' + formatStartTime(time) + '" disabled /></div>');
     //var sectionTimestampElement = $("<div class='ui top left attached label'>"+time+"</div>");
     return sectionTimestampElement;
 }
@@ -305,9 +305,9 @@ function createSectionTimeStampElement(time) {
 function createSectionEditorElement(values) {
     //var sectionEditorElement = $('<div contentEditable="true" class="section-editor our-form-control"></div>');
 
-    var sectionEditorElement = $('<div class="description section-editor our-form-control" contentEditable="false"></div>');
+    var sectionEditorElement = $('<div class="description" contentEditable="false"></div>');
     //var sectionEditorElement = $('<div class="description" contentEditable="false"></div>');
-    var spanElement = $('<p></p>');
+    var spanElement = $('<p style="margin-top: 1%;margin-left: 2%;"></p>');
     sectionEditorElement.append(spanElement);
 
     firebase.database().ref("/firepads/" + transcriptKey + "/" + values.captionKey + "/history").on(
@@ -393,7 +393,7 @@ function createSectionElement(values){
 
     // create a section element for this section object
     //var sectionElement = $('<div class="section"></div>');
-    var sectionElement = $('<div class="ui card section"></div>');
+    var sectionElement = $('<div class="ui card"><div class="content"></div></div>');
     //var sectionElement = $('<div class="content"></div>');
 
     sectionElement.attr('id', values.captionKey);
