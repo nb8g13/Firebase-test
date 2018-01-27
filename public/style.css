@@ -80,8 +80,9 @@ div.ui.card {
 /*for time stamp*/
 input.label-formatting {
   width: 75px;
-  height: 12px;
-  padding: 6px;
+  height: 12px; /* 12px originall */
+  padding: 0px; /* 6 originally */
+  -moz-box-sizing: border-box;
   font-size: x-small;
   border: none;
   background-color: #e8e8e8;
@@ -96,3 +97,7 @@ input.label-formatting {
     -o-user-select: none;
 }
 
+.firepad .powered-by-firepad {
+  display: none;
+  visibility: hidden;
+}
